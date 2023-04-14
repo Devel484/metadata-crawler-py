@@ -1,7 +1,7 @@
 version: '3.9'
 services:
   crawler:
-    image: metadata-crawler-py
+    image: ghcr.io/onblockio/metadata-crawler-py:latest
     container_name: metadata-crawler-py
     environment:
       API_KEY: "SET ME"
