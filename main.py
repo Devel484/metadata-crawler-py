@@ -156,7 +156,7 @@ async def save_worker():
 
 
 async def main():
-
+    print("lets go")
     loop = asyncio.get_event_loop()
     for _ in range(200):
         loop.create_task(worker())
