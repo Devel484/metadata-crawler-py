@@ -1,0 +1,9 @@
+version: '3.9'
+services:
+  crawler:
+    image: metadata-crawler-py
+    container_name: metadata-crawler-py
+    environment:
+      API_KEY: "SET ME"
+      API_URI: "SET ME"
+      IPFS_GATEWAY: "SET ME"
