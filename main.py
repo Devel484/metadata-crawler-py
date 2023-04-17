@@ -2,9 +2,13 @@ import asyncio
 import json
 import os
 import re
+import socket
+from json import JSONDecodeError
 from typing import List, Optional
+
+import aiohttp
 from datauri import datauri
-from aiohttp import ClientSession
+from aiohttp import ClientSession, InvalidURL, ClientConnectorError, ContentTypeError
 import queue
 
 
@@ -25,6 +29,15 @@ if not API_KEY:
 
 if not IPFS_GATEWAY:
     raise RuntimeError(f"No IPFS_GATEWAY set!")
+
+
+STATUS_CODE_NO_RESULT = 0
+STATUS_CODE_NOT_PARSABLE = 1
+STATUS_CODE_INVALID_URI = 2
+STATUS_CODE_SERVICE_NOT_FOUND = 3
+STATUS_CODE_INVALID_IPFS = 4
+STATUS_CODE_UNKNOWN_PROTOCOL = 5
+STATUS_CODE_NO_JSON = 1
 
 
 input_queue = queue.Queue()
@@ -82,19 +95,35 @@ def replace_ipfs_gateway(token_uri: str):
 
 
 async def request_metadata(token_uri: str):
+    if token_uri.lower().startswith("ipfs://"):
+        return STATUS_CODE_INVALID_IPFS, json.dumps({"error": "invalid ipfs link"})
+    if token_uri.lower().startswith("ar://"):
+        return STATUS_CODE_UNKNOWN_PROTOCOL, json.dumps({"error": "unknown protocol"})
     try:
         async with ClientSession() as session:
             async with session.get(token_uri, headers=HEADER) as response:
-                return response.status, json.dumps(await response.json())
-    except:
+                try:
+                    return response.status, json.dumps(await response.json())
+                except JSONDecodeError:
+                    return STATUS_CODE_NOT_PARSABLE, json.dumps({"error": "result is not parsable"})
+                except ContentTypeError:
+                    return STATUS_CODE_NO_JSON, json.dumps({"error": "result is no json"})
+    except ClientConnectorError:
+        return STATUS_CODE_SERVICE_NOT_FOUND, json.dumps({"error": "service not found"})
+    except InvalidURL:
+        return STATUS_CODE_INVALID_URI, json.dumps({"error": "invalid URI"})
+    except Exception as e:
         return None, None
 
 
 async def save_workload(items: List[WorkloadItem]):
     data = [item.to_dict() for item in items]
     async with ClientSession() as session:
-        async with session.post(f"{API_URI}/api/v1/token/batch", data=json.dumps(data), headers={'X-API-KEY': API_KEY, 'accept': 'application/json'}) as response:
-            print(response.status, await response.json())
+        async with session.post(f"{API_URI}/api/v1/token/persist_md", data=json.dumps(data), headers={'X-API-KEY': API_KEY, 'accept': 'application/json', 'Content-Type': 'application/json'}) as response:
+            if response.status == 200:
+                print(f"Saving successful")
+            else:
+                print(response.status, await response.json())
 
 
 async def worker():
@@ -117,7 +146,7 @@ async def worker():
                 code, data = await request_metadata(token_uri)
                 if not code and not data:
                     code = 0
-                    data = ""
+                    data = json.dumps({"error": "no response"})
 
             item.set_metadata(code, data)
             output_queue.put_nowait(item)
@@ -148,6 +177,8 @@ async def save_worker():
                     if len(metadata) > 160:
                         metadata = metadata[:157] + "..."
                     print(f"[{uri:32s}]: {item.response_code:3d} - {metadata}")
+
+                await save_workload(items)
 
             if size < 100:
                 await asyncio.sleep(5)
