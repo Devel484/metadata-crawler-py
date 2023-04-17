@@ -20,6 +20,7 @@ HEADER = {
 API_KEY = os.getenv("API_KEY")
 API_URI = os.getenv("API_URI")
 IPFS_GATEWAY = os.getenv("IPFS_GATEWAY")
+MAX_REQUESTS = int(os.getenv("MAX_REQUESTS")) if os.getenv("MAX_REQUESTS") else 200
 
 if not API_URI:
     raise RuntimeError(f"No API_URI set!")
@@ -187,7 +188,7 @@ async def save_worker():
 
 
 async def main():
-    print("lets go")
+    print(f"Start Metadata Crawler with max. {MAX_REQUESTS} parallel requests...")
     loop = asyncio.get_event_loop()
     for _ in range(200):
         loop.create_task(worker())

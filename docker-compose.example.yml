@@ -7,3 +7,4 @@ services:
       API_KEY: "SET ME"
       API_URI: "SET ME"
       IPFS_GATEWAY: "SET ME"
+      MAX_REQUESTS: 200
